@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Pollution Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" />
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            display: flex;
+            justify-content: space-between;
+            padding: 2rem;
+        }
+        .sidebar {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .sidebar h2 {
+            margin: 0;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        .sidebar h3 {
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar li {
+            margin-bottom: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .sidebar li strong {
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .content {
+            padding: 2rem;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        header {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        header h2 {
+            margin: 0;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.95);
+        }
+
+        #predictionForm {
+            margin-top: 2rem;
+        }
+
+        #city {
+            padding: 0.75rem;
+            font-size: 1rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            width: 100%;
+            border-radius: 8px;
+        }
+
+        #city::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        #ok-button {
+            padding: 0.75rem 1.5rem;
+            font-weight: 500;
+            background: linear-gradient(135deg, #6B73FF 0%, #000DFF 100%);
+            border: none;
+            color: white;
+            margin-left: 1rem;
+        }
+
+        .theme-toggle {
+            margin-top: 2rem;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.4s;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: 0.4s;
+        }
+
+        input:checked + .slider {
+            background-color: #6B73FF;
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+
+        .slider.round {
+            border-radius: 34px;
+        }
+
+        .slider.round:before {
+            border-radius: 50%;
+        }
+
+        .aqi-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 1rem;
+            text-align: center;
+        }
+
+        .aqi-meter {
+            margin-top: 2rem;
+            padding: 1rem 0;
+        }
+
+        .meter-segments {
+            display: flex;
+            width: 100%;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+
+        .meter-scale {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 2px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .segment {
+            flex: 1;
+            height: 100%;
+            transition: transform 0.3s ease;
+        }
+
+        .segment.good { background: #00e400; }
+        .segment.moderate { background: #ffff00; }
+        .segment.poor { background: #ff7e00; }
+        .segment.unhealthy { background: #ff0000; }
+        .segment.severe { background: #8f3f97; }
+        .segment.hazardous { background: #7e0023; }
+
+        .meter-pointer {
+            position: absolute;
+            top: -10px;
+            width: 4px;
+            height: 50px;
+            background: #fff;
+            border-radius: 2px;
+            transform: translateX(-50%);
+            transition: left 0.3s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+
+        .segment.active {
+            transform: scaleY(1.1);
+            box-shadow: 0 0 15px rgba(255,255,255,0.3);
+            z-index: 1;
+        }
+
+        .live-aqi {
+            font-size: 1.2rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .aqi-value-large {
+            font-size: 6rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            margin: 1rem 0;
+        }
+
+        .air-quality {
+            font-size: 1.2rem;
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+
+        .pollutants-container {
+            display: flex;
+            gap: 1.5rem;
+            justify-content: center;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .pollutant-pill {
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.3s ease;
+            padding: 1rem 2rem;
+            border-radius: 30px;
+            text-align: center;
+            min-width: 150px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+
+        .pollutant-pill:hover {
+            transform: translateY(-5px);
+        }
+
+        .pollutant-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+
+        .pollutant-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .pollutant-unit {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.7);
+            margin-top: 0.3rem;
+        }
+
+        .dark-mode .pollutant-pill {
+            background: linear-gradient(135deg, rgba(0,0,0,0.3), rgba(0,0,0,0.1));
+        }
+
+        .weather-section {
+            margin-top: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .weather-container h3 {
+            color: white;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .forecast-item {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 15px;
+            text-align: center;
+            color: white;
+        }
+
+        .forecast-item img {
+            width: 50px;
+            height: 50px;
+            margin: 0.5rem 0;
+        }
+
+        .forecast-temp {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0.5rem 0;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .forecast-desc {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .meter-pointer {
+            position: absolute;
+            top: -15px;
+            width: 3px;
+            height: 45px;
+            background: white;
+            transform-origin: bottom center;
+            transition: left 0.5s ease;
+            z-index: 2;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .meter-pointer::before {
+            content: '';
+            position: absolute;
+            top: -5px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 10px;
+            height: 10px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+        }
+
+        .aqi-image-container {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+
+        .aqi-image-container img {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+            opacity: 0.8;
+        }
+
+        .weather-container {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .weather-container h3 {
+            color: white;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            text-align: center;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 1rem;
+            width: 100%;
+        }
+
+        .forecast-item {
+            background: rgba(255,255,255,0.1);
+            padding: 0.8rem;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+            transition: transform 0.3s ease;
+        }
+
+        .forecast-item:hover {
+            transform: translateY(-3px);
+        }
+
+        .forecast-time {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+
+        .forecast-temp {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 0.5rem 0;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .forecast-desc {
+            font-size: 0.8rem;
+            opacity: 0.8;
+        }
+
+        .aqi-meter {
+            margin-top: 2rem;
+        }
+        
+        .pollutant-values {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .pollutant-item {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+        }
+        
+        .pollutant-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .pollutant-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .weather-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+        }
+        
+        .weather-temp {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .weather-condition {
+            font-size: 1.2rem;
+            color: white;
+        }
+        
+        .weather-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .weather-detail-item {
+            background: rgba(255,255,255,0.1);
+            padding: 1rem;
+            border-radius: 12px;
+            text-align: center;
+            color: white;
+        }
+        
+        .detail-label {
+            font-size: 1.2rem;
+            font-weight: 600;
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        
+        .detail-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+        }
+        
+        .social-media {
+            margin-top: 2rem;
+        }
+        
+        .social-links {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+        
+        .social-link {
+            padding: 0.5rem;
+            font-size: 1.5rem;
+            color: #333;
+            text-decoration: none;
+        }
+        
+        .social-link:hover {
+            color: #6B73FF;
+        }
+        
+        .pollutants-section {
+            flex: 0 0 250px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            margin-right: 20px;
+        }
+
+        .pollutants-section h3 {
+            color: white;
+            margin: 0 0 20px 0;
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+        
+        .pollutant-item {
+            margin-bottom: 15px;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        
+        .pollutant-name {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 5px;
+        }
+        
+        .pollutant-value {
+            font-size: 1.2rem;
+            font-weight: 500;
+            color: white;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .aqi-cell {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .aqi-value-container {
+            text-align: center;
+        }
+
+        .aqi-value {
+            font-size: 4rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .aqi-category {
+            font-size: 1.2rem;
+            color: white;
+            margin-bottom: 20px;
+        }
+
+        .aqi-image {
+            width: 100%;
+            height: 150px;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .aqi-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .weather-cell {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 12px;
+        }
+
+        .weather-container {
+            text-align: center;
+        }
+
+        .weather-info {
+            margin-top: 20px;
+        }
+
+        .weather-item {
+            margin-bottom: 10px;
+        }
+
+        .weather-item i {
+            margin-right: 10px;
+        }
+
+        .results-container {
+            display: grid;
+            gap: 2rem;
+            padding: 2rem;
+            width: 100%;
+        }
+
+        .aqi-output {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .aqi-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 0 auto;
+            max-width: 600px;
+        }
+
+        .weather-box {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .temp-main {
+            font-size: 3rem;
+            color: #fff;
+            margin: 1rem 0;
+        }
+
+        .weather-desc {
+            font-size: 1.2rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-top: 0.5rem;
+        }
+
+        .weather-details {
+            margin-top: 1rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        .weather-row {
+            display: flex;
+            justify-content: space-around;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .aqi-meter {
+            margin-top: 2rem;
+            padding: 1rem 0;
+        }
+
+        .meter-segments {
+            display: flex;
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .meter-scale {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 2px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .segment {
+            flex: 1;
+            height: 100%;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+
+        .segment:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .segment.good { background: #00e400; }
+        .segment.moderate { background: #ffff00; }
+        .segment.poor { background: #ff7e00; }
+        .segment.unhealthy { background: #ff0000; }
+        .segment.severe { background: #8f3f97; }
+        .segment.hazardous { background: #7e0023; }
+
+        .meter-pointer {
+            position: absolute;
+            top: -5px;
+            width: 3px;
+            height: 30px;
+            background: #fff;
+            border-radius: 2px;
+            transform: translateX(-50%);
+            transition: left 0.3s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+
+        .segment.active {
+            transform: scaleY(1.1);
+            box-shadow: 0 0 15px rgba(255,255,255,0.3);
+            z-index: 1;
+        }
+
+        .live-aqi {
+            font-size: 1.2rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .aqi-value-large {
+            font-size: 6rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            margin: 1rem 0;
+        }
+
+        .air-quality {
+            font-size: 1.2rem;
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+        
+        .aqi-weather-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .aqi-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 15px;
+        }
+
+        .weather-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            border-radius: 15px;
+        }
+        
+        .aqi-image-container {
+            position: relative;
+            width: 100%;
+            height: 220px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        
+        .aqi-image-container .aqi-value-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .aqi-image-container .aqi-value {
+            font-size: 4rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 10px;
+        }
+        
+        .aqi-image-container .aqi-label {
+            font-size: 1.2rem;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .aqi-image-container .aqi-category {
+            font-size: 1.2rem;
+            color: white;
+            margin-bottom: 20px;
+        }
+        
+        .aqi-image-container .aqi-background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
+            border-radius: 20px;
+            z-index: -1;
+        }
+        
+        .gradient-text {
+            background: linear-gradient(45deg, #ff69b4, #ff4081);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-blue {
+            background: linear-gradient(45deg, #4a90e2, #357abd);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-green {
+            background: linear-gradient(45deg, #32cd32, #228b22);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-orange {
+            background: linear-gradient(45deg, #ffa500, #ff8c00);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-red {
+            background: linear-gradient(45deg, #ff4444, #cc0000);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-purple {
+            background: linear-gradient(45deg, #9932cc, #800080);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-yellow {
+            background: linear-gradient(45deg, #ffd700, #ffa500);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .gradient-text-gray {
+            background: linear-gradient(45deg, #808080, #696969);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .output-section {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            width: 100%;
+        }
+
+        .aqi-output {
+            text-align: center;
+        }
+
+        .aqi-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+            margin: 0 auto;
+            max-width: 600px;
+        }
+
+        .aqi-meter {
+            margin-top: 2rem;
+            padding: 1rem 0;
+        }
+
+        .meter-segments {
+            display: flex;
+            width: 100%;
+            height: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .meter-scale {
+            display: flex;
+            justify-content: space-between;
+            padding: 0 2px;
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+        }
+
+        .segment {
+            flex: 1;
+            height: 100%;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+
+        .segment:hover::after {
+            content: attr(title);
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            z-index: 10;
+        }
+
+        .segment.good { background: #00e400; }
+        .segment.moderate { background: #ffff00; }
+        .segment.poor { background: #ff7e00; }
+        .segment.unhealthy { background: #ff0000; }
+        .segment.severe { background: #8f3f97; }
+        .segment.hazardous { background: #7e0023; }
+
+        .meter-pointer {
+            position: absolute;
+            top: -5px;
+            width: 3px;
+            height: 30px;
+            background: #fff;
+            border-radius: 2px;
+            transform: translateX(-50%);
+            transition: left 0.3s ease;
+            box-shadow: 0 0 10px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+
+        .segment.active {
+            transform: scaleY(1.1);
+            box-shadow: 0 0 15px rgba(255,255,255,0.3);
+            z-index: 1;
+        }
+
+        .live-aqi {
+            font-size: 1.2rem;
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #00ff00;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .aqi-value-large {
+            font-size: 6rem;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+            margin: 1rem 0;
+        }
+
+        .air-quality {
+            font-size: 1.2rem;
+            color: #fff;
+            margin-bottom: 1rem;
+        }
+
+        .traffic-section {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 2rem;
+        }
+
+        .traffic-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 1rem;
+        }
+
+        .traffic-info {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .traffic-status {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .traffic-light {
+            background: #333;
+            padding: 10px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .light {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: #111;
+            position: relative;
+        }
+
+        .light.active {
+            box-shadow: 0 0 20px currentColor;
+        }
+
+        .light.red { background: #ff000030; }
+        .light.red.active { background: #ff0000; }
+        
+        .light.yellow { background: #ffff0030; }
+        .light.yellow.active { background: #ffff00; }
+        
+        .light.green { background: #00ff0030; }
+        .light.green.active { background: #00ff00; }
+
+        .timing-info {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1rem;
+            border-radius: 10px;
+            min-width: 200px;
+        }
+
+        .timing-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 0.5rem 0;
+            color: #fff;
+        }
+
+        .light-label {
+            font-weight: 600;
+        }
+
+        .red-text { color: #ff6b6b; }
+        .yellow-text { color: #ffd93d; }
+        .green-text { color: #6bff6b; }
+
+        .traffic-details {
+            display: grid;
+            gap: 2rem;
+        }
+
+        .traffic-data, .recommendation {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 1.5rem;
+            border-radius: 10px;
+        }
+
+        .traffic-data h4, .recommendation h4 {
+            color: #fff;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            color: rgba(255, 255, 255, 0.8);
+            margin: 0.5rem 0;
+        }
+
+        .recommendation p {
+            color: rgba(255, 255, 255, 0.8);
+            line-height: 1.5;
+        }
+
+        @keyframes blink {
+            0% { opacity: 0.3; }
+            50% { opacity: 1; }
+            100% { opacity: 0.3; }
+        }
+
+        .light.active {
+            animation: blink 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="menu-container">
+        <div class="three-dots" onclick="toggleMenu(event)">
+            <span></span>
+            <span></span>
+            <span></span>
+        </div>
+        <div class="menu-items" id="menuItems">
+            <div class="menu-item" onclick="showHome()">Home</div>
+            <div class="menu-item" onclick="showAbout()">About</div>
+            <div class="menu-item" onclick="showContact()">Contact</div>
+            <div class="menu-item theme-toggle">
+                <span>Dark Mode</span>
+                <label class="switch">
+                    <input type="checkbox" id="theme-switch">
+                    <span class="slider round"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <aside class="sidebar animate_animated animate_fadeInLeft">
+            <div id="homeContent">
+                <h2 class="gradient-text">AIR POLLUTION PREDICTION</h2>
+                <div class="pollutants-sidebar">
+                    <h3 class="gradient-text">Live Pollutants</h3>
+                    <ul>
+                        <li>
+                            <strong>PM2.5:</strong>
+                            <span id="pm25-value">--</span> μg/m³
+                        </li>
+                        <li>
+                            <strong>PM10:</strong>
+                            <span id="pm10-value">--</span> μg/m³
+                        </li>
+                        <li>
+                            <strong>SO2:</strong>
+                            <span id="so2-value">--</span> ppb
+                        </li>
+                        <li>
+                            <strong>NO2:</strong>
+                            <span id="no2-value">--</span> ppb
+                        </li>
+                        <li>
+                            <strong>O3:</strong>
+                            <span id="o3-value">--</span> ppb
+                        </li>
+                        <li>
+                            <strong>CO:</strong>
+                            <span id="co-value">--</span> ppm
+                        </li>
+                        <li>
+                            <strong>NH3:</strong>
+                            <span id="nh3-value">--</span> ppb
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            <div id="aboutContent" style="display: none;">
+                <div class="about-header">
+                    <h2 class="gradient-text">About Us</h2>
+                    <p class="about-intro">Welcome to our Air Quality Monitoring System! We are dedicated to providing accurate and real-time air quality information to help you make informed decisions about your outdoor activities.</p>
+                </div>
+                
+                <div class="about-section">
+                    <h3 class="gradient-text">Our Mission</h3>
+                    <p>To create awareness about air pollution and provide tools for monitoring air quality in your area, helping communities make informed decisions for a healthier future.</p>
+                </div>
+                
+                <div class="about-section">
+                    <h3 class="gradient-text">Features</h3>
+                    <ul class="feature-list">
+                        <li>✅ Real-time AQI monitoring with instant updates</li>
+                        <li>✅ Multiple pollutant tracking and analysis</li>
+                        <li>✅ Interactive maps with location-based data</li>
+                        <li>✅ Historical data analysis and trends</li>
+                        <li>✅ Customizable alerts and notifications</li>
+                    </ul>
+                </div>
+
+                <div class="about-section">
+                    <h3 class="gradient-text">Meet Our Team</h3>
+                    <p class="team-intro">Our dedicated team of developers and experts working together to create a better environment.</p>
+                    <div class="dev-team">
+                        
+                        <div class="dev-card">
+                            <span class="dev-icon">👨‍💻</span>
+                            <span class="dev-name">Anshuman Das</span>
+                        </div>
+                        <div class="dev-card">
+                            <span class="dev-icon">👩‍💻</span>
+                            <span class="dev-name">Subhendu Kumar Mohapatra</span>
+                        </div>
+                        <div class="dev-card">
+                            <span class="dev-icon">👩‍💻</span>
+                            <span class="dev-name">Aditya Ranjan Prusty</span>
+                        </div>
+                        <div class="dev-card">
+                            <span class="dev-icon">👩‍💻</span>
+                            <span class="dev-name">Gracy Ram</span>
+                        </div>
+                        <div class="dev-card">
+                            <span class="dev-icon">👩‍💻</span>
+                            <span class="dev-name">Surya Prasad Rout</span>
+                        </div>
+                        <div class="dev-card">
+                            <span class="dev-icon">👩‍💻</span>
+                            <span class="dev-name">Bhanu Pratap Singh</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="social-media">
+                <h3 class="gradient-text">Follow Us</h3>
+                <div class="social-links">
+                    <a href="https://twitter.com" target="_blank" class="social-link">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="https://facebook.com" target="_blank" class="social-link">
+                        <i class="fab fa-facebook"></i>
+                    </a>
+                    <a href="https://linkedin.com" target="_blank" class="social-link">
+                        <i class="fab fa-linkedin"></i>
+                    </a>
+                </div>
+            </div>
+            
+            <div id="contactContent" style="display: none;">
+                <h2 class="gradient-text">Contact Us</h2>
+                <p>Have questions or suggestions? We'd love to hear from you!</p>
+                <h3 class="gradient-text">Get in Touch</h3>
+                <ul>
+                    <li>📧 Email: support@airquality.com</li>
+                    <li>📞 Phone: 1800-1203-667</li>
+                    <li>🌐 Website: www.airquality.com</li>
+                    <li>📍 Location: New Delhi, India</li>
+                </ul>
+            </div>
+        </aside>
+
+        <main class="content animate_animated animate_fadeIn">
+            <header class="animate_animated animate_fadeInDown">
+                <form id="predictionForm">
+                    <input type="text" id="city" name="city" placeholder="Enter city name" required>
+                    <button type="submit" id="ok-button">OK</button>
+                </form>
+            </header>
+
+            <div class="results-container">
+                <div class="aqi-output">
+                    <div class="live-aqi">
+                        <span class="live-dot"></span> Live AQI
+                    </div>
+                    <div class="aqi-container">
+                        <div class="aqi-value-large"><span id="aqi">--</span></div>
+                        <div class="air-quality">Air Quality is <span id="aqi-category">--</span></div>
+                        <div class="aqi-meter">
+                            <div class="meter-segments">
+                                <div class="segment good" title="Good (0-50)"></div>
+                                <div class="segment moderate" title="Moderate (51-100)"></div>
+                                <div class="segment poor" title="Poor (101-150)"></div>
+                                <div class="segment unhealthy" title="Unhealthy (151-200)"></div>
+                                <div class="segment severe" title="Very Unhealthy (201-300)"></div>
+                                <div class="segment hazardous" title="Hazardous (300+)"></div>
+                                <div class="meter-pointer"></div>
+                            </div>
+                            <div class="meter-scale">
+                                <span>0</span>
+                                <span>50</span>
+                                <span>100</span>
+                                <span>150</span>
+                                <span>200</span>
+                                <span>300+</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Weather Info -->
+                <div class="weather-box">
+                    <h3 class="gradient-text">Weather Information</h3>
+                    <div class="temp-main">
+                        <span id="temperature">--</span>
+                        <div class="weather-desc"><span id="weather-desc">--</span></div>
+                    </div>
+                    <div class="weather-details">
+                        <div class="weather-row">
+                            <span>Humidity: <span id="humidity">--</span></span>
+                            <span>Wind Speed: <span id="wind-speed">--</span></span>
+                            <span>UV Index: <span id="uv-index">--</span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Traffic Light Timing Section -->
+                <div class="traffic-section">
+                    <h3 class="gradient-text">Smart Traffic Management</h3>
+                    <div class="traffic-container">
+                        <div class="traffic-info">
+                            <div class="traffic-status">
+                                <div class="traffic-light">
+                                    <div class="light red"></div>
+                                    <div class="light yellow"></div>
+                                    <div class="light green"></div>
+                                </div>
+                                <div class="timing-info">
+                                    <div class="timing-row">
+                                        <span class="light-label red-text">Red Light:</span>
+                                        <span id="red-timing">-- sec</span>
+                                    </div>
+                                    <div class="timing-row">
+                                        <span class="light-label yellow-text">Yellow Light:</span>
+                                        <span id="yellow-timing">-- sec</span>
+                                    </div>
+                                    <div class="timing-row">
+                                        <span class="light-label green-text">Green Light:</span>
+                                        <span id="green-timing">-- sec</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="traffic-details">
+                                <div class="traffic-data">
+                                    <h4>Current Traffic Data</h4>
+                                    <div class="data-row">
+                                        <span>Traffic Density:</span>
+                                        <span id="traffic-density">--</span>
+                                    </div>
+                                    <div class="data-row">
+                                        <span>Average Speed:</span>
+                                        <span id="avg-speed">--</span>
+                                    </div>
+                                    <div class="data-row">
+                                        <span>Queue Length:</span>
+                                        <span id="queue-length">--</span>
+                                    </div>
+                                </div>
+                                <div class="recommendation">
+                                    <h4>AQI-Based Recommendation</h4>
+                                    <p id="traffic-recommendation">Enter a city to see traffic recommendations</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Map -->
+                <div id="map"></div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        // Check and apply theme on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const themeSwitch = document.getElementById('theme-switch');
+            const savedTheme = localStorage.getItem('theme');
+            
+            if (savedTheme === 'dark') {
+                document.body.classList.add('dark-mode');
+                themeSwitch.checked = true;
+            }
+            
+            // Theme switch handler
+            themeSwitch.addEventListener('change', function(e) {
+                if (e.target.checked) {
+                    document.body.classList.add('dark-mode');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-mode');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+
+            // Close menu when clicking outside
+            document.addEventListener('click', function(e) {
+                const menuContainer = document.querySelector('.menu-container');
+                const menuItems = document.getElementById('menuItems');
+                
+                if (!menuContainer.contains(e.target)) {
+                    menuItems.style.display = 'none';
+                }
+            });
+        });
+
+        function toggleMenu(e) {
+            e.stopPropagation();
+            const menuItems = document.getElementById('menuItems');
+            const threeDots = document.querySelector('.three-dots');
+            
+            if (menuItems.style.display === 'block') {
+                menuItems.style.display = 'none';
+                threeDots.classList.remove('active');
+            } else {
+                menuItems.style.display = 'block';
+                threeDots.classList.add('active');
+            }
+        }
+
+        function showHome() {
+            document.getElementById('homeContent').style.display = 'block';
+            document.getElementById('aboutContent').style.display = 'none';
+            document.getElementById('contactContent').style.display = 'none';
+            document.getElementById('menuItems').style.display = 'none';
+        }
+
+        function showAbout() {
+            document.getElementById('homeContent').style.display = 'none';
+            document.getElementById('aboutContent').style.display = 'block';
+            document.getElementById('contactContent').style.display = 'none';
+            document.getElementById('menuItems').style.display = 'none';
+        }
+
+        function showContact() {
+            document.getElementById('homeContent').style.display = 'none';
+            document.getElementById('aboutContent').style.display = 'none';
+            document.getElementById('contactContent').style.display = 'block';
+            document.getElementById('menuItems').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
